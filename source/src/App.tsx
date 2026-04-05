@@ -302,14 +302,18 @@ export default function App() {
                         </TableHeader>
                         <TableBody>
                           {resources.map((item, i) => (
-                            <TableRow key={item.metadata?.uid || i}>
+                            <TableRow 
+                              key={item.metadata?.uid || i}
+                              className="cursor-pointer hover:bg-muted/50 transition-colors"
+                              onClick={() => handleViewDetail(item)}
+                            >
                               <TableCell className="font-medium">{item.metadata?.name}</TableCell>
                               {selectedResource.namespaced && <TableCell>{item.metadata?.namespace}</TableCell>}
                               <TableCell className="text-muted-foreground">
                                 {item.metadata?.creationTimestamp ? new Date(item.metadata.creationTimestamp).toLocaleString() : '-'}
                               </TableCell>
                               <TableCell className="text-right">
-                                <Button variant="ghost" size="sm" onClick={() => handleViewDetail(item)}>
+                                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewDetail(item); }}>
                                   <Eye className="w-4 h-4 mr-2" /> View
                                 </Button>
                               </TableCell>
@@ -346,15 +350,15 @@ export default function App() {
                 <TabsTrigger value="json" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none">JSON</TabsTrigger>
               </TabsList>
               <TabsContent value="yaml" className="flex-1 overflow-hidden m-0 data-[state=active]:flex">
-                <ScrollArea className="flex-1 w-full rounded-md border bg-muted/50">
-                  <pre className="p-4 text-xs font-mono text-foreground">
+                <ScrollArea className="flex-1 w-full rounded-md border bg-muted/30">
+                  <pre className="p-4 text-[13px] font-mono text-foreground/90 leading-relaxed">
                     {detailResource ? yaml.dump(detailResource) : ''}
                   </pre>
                 </ScrollArea>
               </TabsContent>
               <TabsContent value="json" className="flex-1 overflow-hidden m-0 data-[state=active]:flex">
-                <ScrollArea className="flex-1 w-full rounded-md border bg-muted/50">
-                  <pre className="p-4 text-xs font-mono text-foreground">
+                <ScrollArea className="flex-1 w-full rounded-md border bg-muted/30">
+                  <pre className="p-4 text-[13px] font-mono text-foreground/90 leading-relaxed">
                     {detailResource ? JSON.stringify(detailResource, null, 2) : ''}
                   </pre>
                 </ScrollArea>
