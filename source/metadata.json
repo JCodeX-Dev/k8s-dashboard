@@ -1,5 +1,5 @@
 {
-  "name": "KubeDash",
+  "name": "KubeFabric",
   "description": "A custom Kubernetes dashboard to view all resources including CRDs.",
   "requestFramePermissions": []
 }

@@ -207,7 +207,7 @@ export default function App() {
           <div className="bg-blue-600 p-1.5 rounded-md">
             <Box className="w-5 h-5 text-white" />
           </div>
-          <h1 className="font-bold text-lg tracking-tight text-slate-900">KubeDash</h1>
+          <h1 className="font-bold text-lg tracking-tight text-slate-900">KubeFabric</h1>
         </div>
         
         <div className="ml-auto flex items-center gap-4 text-sm">
@@ -243,7 +243,7 @@ export default function App() {
             </div>
             <h2 className="text-2xl font-bold text-slate-900 mb-3">No Clusters Connected</h2>
             <p className="max-w-md text-center text-slate-500 leading-relaxed">
-              Deploy the KubeDash agent to your Kubernetes clusters to see them appear here automatically. The connection is secure and real-time.
+              Deploy the KubeFabric agent to your Kubernetes clusters to see them appear here automatically. The connection is secure and real-time.
             </p>
           </div>
         ) : (
@@ -265,7 +265,7 @@ export default function App() {
                   </select>
                 </div>
               </div>
-              <ScrollArea className="flex-1">
+              <div className="flex-1 overflow-y-auto min-h-0">
                 <div className="p-3 space-y-6">
                   {isLoadingDiscovery ? (
                     <div className="flex flex-col items-center justify-center p-8 text-slate-400 gap-3">
@@ -308,7 +308,7 @@ export default function App() {
                     })
                   )}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
 
             {/* Content Area */}
