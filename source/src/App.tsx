@@ -6,8 +6,9 @@ import { ScrollArea } from './components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Label } from './components/ui/label';
-import { Server, ShieldAlert, Loader2, Box, Layers, RefreshCw, Eye, Activity, Globe, Database, Cpu, Puzzle, Terminal, Search, Filter, ChevronRight } from 'lucide-react';
+import { Server, ShieldAlert, Loader2, Box, Layers, RefreshCw, Eye, Activity, Globe, Database, Cpu, Puzzle, Terminal, Search, Filter, ChevronRight, Network } from 'lucide-react';
 import yaml from 'js-yaml';
+import ResourceGraph from './components/ResourceGraph';
 
 const getGroupIcon = (groupName: string) => {
   switch (groupName) {
@@ -32,6 +33,7 @@ export default function App() {
   const [selectedResource, setSelectedResource] = useState<any>(null);
   const [selectedNamespace, setSelectedNamespace] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [labelFilter, setLabelFilter] = useState('');
   
   // Resource List State
   const [resources, setResources] = useState<any[]>([]);
@@ -93,21 +95,15 @@ export default function App() {
     }
   };
 
-  useEffect(() => {
-    if (selectedCluster && selectedResource) {
-      fetchResources();
-    }
-  }, [selectedCluster, selectedResource, selectedNamespace]);
-
   const parseGroupVersion = (gv: string) => {
     const parts = gv.split('/');
     if (parts.length === 1) return { group: '', version: parts[0] };
     return { group: parts[0], version: parts[1] };
   };
 
-  const fetchResources = async () => {
+  const fetchResources = async (showLoading = true) => {
     if (!selectedCluster || !selectedResource) return;
-    setIsLoadingResources(true);
+    if (showLoading) setIsLoadingResources(true);
     setResourceError('');
     try {
       const { group, version } = parseGroupVersion(selectedGroupVersion);
@@ -115,11 +111,20 @@ export default function App() {
       setResources(data.items || []);
     } catch (err: any) {
       setResourceError(err.message);
-      setResources([]);
+      if (showLoading) setResources([]);
     } finally {
-      setIsLoadingResources(false);
+      if (showLoading) setIsLoadingResources(false);
     }
   };
+
+  useEffect(() => {
+    if (selectedCluster && selectedResource) {
+      fetchResources(true);
+      // Real-time updates via polling every 3 seconds
+      const interval = setInterval(() => fetchResources(false), 3000);
+      return () => clearInterval(interval);
+    }
+  }, [selectedCluster, selectedResource, selectedNamespace]);
 
   const handleViewDetail = async (item: any) => {
     if (!selectedCluster || !selectedResource) return;
@@ -175,8 +180,23 @@ export default function App() {
   }, [discovery]);
 
   const filteredResources = resources.filter(r => {
-    if (!searchQuery) return true;
-    return r.metadata?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+    let matches = true;
+    if (searchQuery) {
+      matches = matches && r.metadata?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+    }
+    if (labelFilter) {
+      const labels = r.metadata?.labels || {};
+      const filterParts = labelFilter.split(',').map(s => s.trim()).filter(Boolean);
+      for (const part of filterParts) {
+        if (part.includes('=')) {
+          const [k, v] = part.split('=');
+          if (labels[k] !== v) matches = false;
+        } else {
+          if (!(part in labels)) matches = false;
+        }
+      }
+    }
+    return matches;
   });
 
   return (
@@ -319,10 +339,20 @@ export default function App() {
                         placeholder="Search by name..." 
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
+                        className="h-9 w-48 pl-9 pr-4 rounded-lg border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                      />
+                    </div>
+                    <div className="relative">
+                      <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input 
+                        type="text" 
+                        placeholder="Labels (e.g. app=web, env=prod)" 
+                        value={labelFilter}
+                        onChange={(e) => setLabelFilter(e.target.value)}
                         className="h-9 w-64 pl-9 pr-4 rounded-lg border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                       />
                     </div>
-                    <Button variant="outline" size="sm" onClick={fetchResources} disabled={isLoadingResources} className="h-9 bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                    <Button variant="outline" size="sm" onClick={() => fetchResources(true)} disabled={isLoadingResources} className="h-9 bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900">
                       <RefreshCw className={`w-4 h-4 mr-2 ${isLoadingResources ? 'animate-spin text-blue-500' : ''}`} />
                       Refresh
                     </Button>
@@ -460,6 +490,12 @@ export default function App() {
                   >
                     JSON
                   </TabsTrigger>
+                  <TabsTrigger 
+                    value="graph" 
+                    className="rounded-t-lg rounded-b-none border-b-2 border-transparent px-6 py-2.5 text-sm font-medium text-slate-400 data-[state=active]:border-blue-500 data-[state=active]:bg-slate-950 data-[state=active]:text-slate-100 data-[state=active]:shadow-none transition-all flex items-center gap-2"
+                  >
+                    <Network className="w-4 h-4" /> Graph
+                  </TabsTrigger>
                 </TabsList>
               </div>
               <TabsContent value="yaml" className="flex-1 overflow-hidden m-0 data-[state=active]:flex bg-slate-950">
@@ -475,6 +511,9 @@ export default function App() {
                     {detailResource ? JSON.stringify(detailResource, null, 2) : ''}
                   </pre>
                 </ScrollArea>
+              </TabsContent>
+              <TabsContent value="graph" className="flex-1 overflow-hidden m-0 data-[state=active]:flex bg-slate-950">
+                {detailResource && <ResourceGraph cluster={selectedCluster} resource={detailResource} />}
               </TabsContent>
             </Tabs>
           </div>
