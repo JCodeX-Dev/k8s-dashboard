@@ -9,6 +9,7 @@ import { Label } from './components/ui/label';
 import { Server, ShieldAlert, Loader2, Box, Layers, RefreshCw, Eye, Activity, Globe, Database, Cpu, Puzzle, Terminal, Search, Filter, ChevronRight, Network } from 'lucide-react';
 import yaml from 'js-yaml';
 import ResourceGraph from './components/ResourceGraph';
+import ClusterOverview from './components/ClusterOverview';
 
 const getGroupIcon = (groupName: string) => {
   switch (groupName) {
@@ -32,6 +33,7 @@ export default function App() {
   const [selectedGroupVersion, setSelectedGroupVersion] = useState<string>('v1');
   const [selectedResource, setSelectedResource] = useState<any>(null);
   const [selectedNamespace, setSelectedNamespace] = useState<string>('all');
+  const [namespaces, setNamespaces] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [labelFilter, setLabelFilter] = useState('');
   
@@ -65,11 +67,24 @@ export default function App() {
   useEffect(() => {
     if (selectedCluster) {
       fetchDiscovery(selectedCluster);
+      fetchNamespaces(selectedCluster);
     } else {
       setDiscovery([]);
       setSelectedResource(null);
+      setNamespaces([]);
     }
   }, [selectedCluster]);
+
+  const fetchNamespaces = async (clusterName: string) => {
+    try {
+      const data = await listResources(clusterName, '', 'v1', 'namespaces');
+      if (data && data.items) {
+        setNamespaces(data.items.map((ns: any) => ns.metadata.name));
+      }
+    } catch (err) {
+      console.error("Failed to fetch namespaces", err);
+    }
+  };
 
   const fetchDiscovery = async (clusterName: string) => {
     setIsLoadingDiscovery(true);
@@ -77,16 +92,9 @@ export default function App() {
       const data = await getDiscovery(clusterName);
       setDiscovery(data || []);
       
-      // Default selection to Pods
+      // Default selection to Overview (null resource)
       if (data && data.length > 0) {
-        const v1 = data.find((r: any) => r.groupVersion === 'v1');
-        if (v1) {
-          const pods = v1.resources.find((r: any) => r.name === 'pods');
-          if (pods) {
-            setSelectedGroupVersion('v1');
-            setSelectedResource(pods);
-          }
-        }
+        setSelectedResource(null);
       }
     } catch (err) {
       console.error("Failed to fetch discovery", err);
@@ -260,13 +268,30 @@ export default function App() {
                     onChange={(e) => setSelectedNamespace(e.target.value)}
                   >
                     <option value="all">All Namespaces</option>
-                    <option value="default">default</option>
-                    <option value="kube-system">kube-system</option>
+                    {namespaces.map(ns => (
+                      <option key={ns} value={ns}>{ns}</option>
+                    ))}
                   </select>
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto min-h-0">
                 <div className="p-3 space-y-6">
+                  <div className="px-2">
+                    <button
+                      onClick={() => setSelectedResource(null)}
+                      className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all duration-200 flex items-center justify-between group ${
+                        selectedResource === null
+                          ? 'bg-blue-50 text-blue-700 font-semibold shadow-sm'
+                          : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900 font-medium'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Activity className={`w-4 h-4 ${selectedResource === null ? 'text-blue-600' : 'text-slate-400'}`} />
+                        Cluster Overview
+                      </div>
+                      {selectedResource === null && <ChevronRight className="w-4 h-4 text-blue-500" />}
+                    </button>
+                  </div>
                   {isLoadingDiscovery ? (
                     <div className="flex flex-col items-center justify-center p-8 text-slate-400 gap-3">
                       <Loader2 className="w-6 h-6 animate-spin text-blue-500" /> 
@@ -312,7 +337,9 @@ export default function App() {
             </div>
 
             {/* Content Area */}
-            {selectedResource && (
+            {selectedResource === null ? (
+              <ClusterOverview clusterName={selectedCluster} />
+            ) : (
               <div className="flex-1 flex flex-col overflow-hidden bg-slate-50/50">
                 <div className="h-20 border-b border-slate-200 flex items-center px-8 shrink-0 justify-between bg-white">
                   <div>
