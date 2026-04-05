@@ -1,0 +1,55 @@
+name: Version Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  preview-version:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write # Required to post comments
+      contents: read            # required for checkout
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v4.2.0
+        with:
+          versionSpec: '6.4.x'
+
+      - name: Determine Version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v4.2.0
+        with:
+          disableNormalization: true
+
+      - name: Output the FullSemVer variable
+        uses: gittools/actions/gitversion/command@v4.2.0
+        with:
+          arguments: '/showvariable MajorMinorPatch'
+
+      - name: Post PR Comment
+        uses: mshick/add-pr-comment@v2
+        with:
+          message-id: version-preview # Ensures we update the same comment
+          message: |
+            ## 🚀 Version Preview
+            If merged, the next release version will be:
+            **`${{ steps.gitversion.outputs.majorMinorPatch }}`**
+            
+            _Based on commit message analysis._
+        
+      # - name: Post PR Comment
+      #   uses: actions/github-script@v7
+      #   with:
+      #     script: |
+      #       github.rest.issues.createComment({
+      #         issue_number: context.issue.number,
+      #         owner: context.repo.owner,
+      #         repo: context.repo.repo,
+      #         body: '## 🚀 Version Preview \nNext version: **${{ steps.gitversion.outputs.majorMinorPatch }}**'
+      #       })

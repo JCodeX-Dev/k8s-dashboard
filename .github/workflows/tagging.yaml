@@ -1,0 +1,66 @@
+name: Auto Tag Version
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - source/**
+      - values/**
+      
+permissions:
+  contents: write            # required for checkout
+  packages: write           # allow publishing packages (GHCR)
+  id-token: write           # not required here but harmless
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.gitversion.outputs.majorMinorPatch }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v4.2.0
+        with:
+          versionSpec: '6.4.x'
+
+      - name: Determine Version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v4.2.0
+        with:
+          disableNormalization: true
+
+      - name: Output the FullSemVer variable
+        uses: gittools/actions/gitversion/command@v4.2.0
+        with:
+          arguments: '/showvariable MajorMinorPatch'
+      
+      - name: Create and Push Tag
+        run: |
+          git tag v${{ steps.gitversion.outputs.majorMinorPatch }}
+          git push origin v${{ steps.gitversion.outputs.majorMinorPatch }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # - name: Create Tag and Release
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     tag_name: v${{ steps.gitversion.outputs.majorMinorPatch }}
+      #     name: Release v${{ steps.gitversion.outputs.majorMinorPatch }}
+      #     # This generates an automatic changelog based on commits since last tag
+      #     generate_release_notes: true
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # This job calls the separate file
+  docker-release:
+    needs: tag
+    uses: ./.github/workflows/ci-build-and-push.yml
+    with:
+      tag_name: ${{ needs.tag.outputs.new_version }}
+    secrets: inherit # Passes GITHUB_TOKEN and others to the worker
