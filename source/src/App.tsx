@@ -200,7 +200,7 @@ export default function App() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900">
+    <div className="h-screen overflow-hidden bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900">
       {/* Header */}
       <header className="h-14 border-b border-slate-200 flex items-center px-6 bg-white shrink-0 shadow-sm z-10">
         <div className="flex items-center gap-2.5">
