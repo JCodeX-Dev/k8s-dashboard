@@ -6,8 +6,18 @@ import { ScrollArea } from './components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Label } from './components/ui/label';
-import { Server, ShieldAlert, Loader2, Box, Layers, RefreshCw, Eye, Activity } from 'lucide-react';
+import { Server, ShieldAlert, Loader2, Box, Layers, RefreshCw, Eye, Activity, Globe, Database, Cpu, Puzzle, Terminal, Search, Filter, ChevronRight } from 'lucide-react';
 import yaml from 'js-yaml';
+
+const getGroupIcon = (groupName: string) => {
+  switch (groupName) {
+    case 'Workloads': return <Layers className="w-4 h-4" />;
+    case 'Network': return <Globe className="w-4 h-4" />;
+    case 'Config & Storage': return <Database className="w-4 h-4" />;
+    case 'Cluster': return <Cpu className="w-4 h-4" />;
+    default: return <Puzzle className="w-4 h-4" />;
+  }
+};
 
 export default function App() {
   const [clusters, setClusters] = useState<Cluster[]>([]);
@@ -21,6 +31,7 @@ export default function App() {
   const [selectedGroupVersion, setSelectedGroupVersion] = useState<string>('v1');
   const [selectedResource, setSelectedResource] = useState<any>(null);
   const [selectedNamespace, setSelectedNamespace] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Resource List State
   const [resources, setResources] = useState<any[]>([]);
@@ -163,19 +174,28 @@ export default function App() {
     return groups;
   }, [discovery]);
 
+  const filteredResources = resources.filter(r => {
+    if (!searchQuery) return true;
+    return r.metadata?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+  });
+
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900">
       {/* Header */}
-      <header className="h-14 border-b flex items-center px-4 bg-card text-card-foreground shrink-0">
-        <Box className="w-6 h-6 mr-2 text-primary" />
-        <h1 className="font-bold text-lg tracking-tight">KubeDash</h1>
+      <header className="h-14 border-b border-slate-200 flex items-center px-6 bg-white shrink-0 shadow-sm z-10">
+        <div className="flex items-center gap-2.5">
+          <div className="bg-blue-600 p-1.5 rounded-md">
+            <Box className="w-5 h-5 text-white" />
+          </div>
+          <h1 className="font-bold text-lg tracking-tight text-slate-900">KubeDash</h1>
+        </div>
         
         <div className="ml-auto flex items-center gap-4 text-sm">
           {clusters.length > 0 ? (
-            <div className="flex items-center gap-2">
-              <Server className="w-4 h-4 text-muted-foreground" />
+            <div className="flex items-center gap-3 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+              <Server className="w-4 h-4 text-slate-500" />
               <select 
-                className="h-8 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="bg-transparent border-none text-sm font-medium text-slate-700 focus:ring-0 cursor-pointer outline-none"
                 value={selectedCluster}
                 onChange={(e) => setSelectedCluster(e.target.value)}
               >
@@ -183,11 +203,12 @@ export default function App() {
                   <option key={c.name} value={c.name}>{c.name} ({c.status})</option>
                 ))}
               </select>
+              <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Activity className="w-4 h-4" />
-              Waiting for agents...
+            <div className="flex items-center gap-2 text-slate-500 bg-slate-100 px-4 py-1.5 rounded-lg border border-slate-200">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="font-medium">Waiting for agents...</span>
             </div>
           )}
         </div>
@@ -196,58 +217,71 @@ export default function App() {
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
         {clusters.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
-            <Server className="w-16 h-16 mb-4 opacity-20" />
-            <h2 className="text-xl font-semibold text-foreground mb-2">No Clusters Connected</h2>
-            <p className="max-w-md text-center">
-              Deploy the KubeDash agent to your Kubernetes clusters to see them appear here automatically.
+          <div className="flex-1 flex flex-col items-center justify-center bg-white">
+            <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center mb-6">
+              <Server className="w-10 h-10 text-blue-500" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-900 mb-3">No Clusters Connected</h2>
+            <p className="max-w-md text-center text-slate-500 leading-relaxed">
+              Deploy the KubeDash agent to your Kubernetes clusters to see them appear here automatically. The connection is secure and real-time.
             </p>
           </div>
         ) : (
           <>
             {/* Sidebar */}
-            <div className="w-64 border-r bg-muted/30 flex flex-col shrink-0">
-              <div className="p-4 border-b">
-                <Label className="text-xs font-semibold uppercase text-muted-foreground mb-2 block">Namespace</Label>
-                <select 
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  value={selectedNamespace}
-                  onChange={(e) => setSelectedNamespace(e.target.value)}
-                >
-                  <option value="all">All Namespaces</option>
-                  <option value="default">default</option>
-                  <option value="kube-system">kube-system</option>
-                </select>
+            <div className="w-72 border-r border-slate-200 bg-white flex flex-col shrink-0 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-0">
+              <div className="p-5 border-b border-slate-100">
+                <Label className="text-[11px] font-bold tracking-wider uppercase text-slate-400 mb-2.5 block">Namespace Filter</Label>
+                <div className="relative">
+                  <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <select 
+                    className="w-full h-10 rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 py-1 text-sm font-medium text-slate-700 shadow-sm transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none appearance-none cursor-pointer"
+                    value={selectedNamespace}
+                    onChange={(e) => setSelectedNamespace(e.target.value)}
+                  >
+                    <option value="all">All Namespaces</option>
+                    <option value="default">default</option>
+                    <option value="kube-system">kube-system</option>
+                  </select>
+                </div>
               </div>
               <ScrollArea className="flex-1">
-                <div className="p-2 space-y-4">
+                <div className="p-3 space-y-6">
                   {isLoadingDiscovery ? (
-                    <div className="flex items-center justify-center p-4 text-muted-foreground">
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading...
+                    <div className="flex flex-col items-center justify-center p-8 text-slate-400 gap-3">
+                      <Loader2 className="w-6 h-6 animate-spin text-blue-500" /> 
+                      <span className="text-sm font-medium">Discovering API...</span>
                     </div>
                   ) : (
-                    Object.entries(groupedResources).map(([groupName, items]) => {
+                    (Object.entries(groupedResources) as [string, any[]][]).map(([groupName, items]) => {
                       if (items.length === 0) return null;
                       return (
-                        <div key={groupName}>
-                          <h3 className="px-2 text-xs font-semibold uppercase text-muted-foreground mb-1">{groupName}</h3>
+                        <div key={groupName} className="px-2">
+                          <div className="flex items-center gap-2 px-2 mb-2">
+                            <span className="text-slate-400">{getGroupIcon(groupName)}</span>
+                            <h3 className="text-[11px] font-bold tracking-wider uppercase text-slate-500">{groupName}</h3>
+                          </div>
                           <div className="space-y-0.5">
-                            {items.map(item => (
-                              <button
-                                key={`${item.groupVersion}-${item.name}`}
-                                onClick={() => {
-                                  setSelectedGroupVersion(item.groupVersion);
-                                  setSelectedResource(item);
-                                }}
-                                className={`w-full text-left px-2 py-1.5 text-sm rounded-md transition-colors ${
-                                  selectedResource?.name === item.name && selectedGroupVersion === item.groupVersion
-                                    ? 'bg-primary/10 text-primary font-medium'
-                                    : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                                }`}
-                              >
-                                {item.kind}
-                              </button>
-                            ))}
+                            {items.map(item => {
+                              const isSelected = selectedResource?.name === item.name && selectedGroupVersion === item.groupVersion;
+                              return (
+                                <button
+                                  key={`${item.groupVersion}-${item.name}`}
+                                  onClick={() => {
+                                    setSelectedGroupVersion(item.groupVersion);
+                                    setSelectedResource(item);
+                                  }}
+                                  className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all duration-200 flex items-center justify-between group ${
+                                    isSelected
+                                      ? 'bg-blue-50 text-blue-700 font-semibold shadow-sm'
+                                      : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900 font-medium'
+                                  }`}
+                                >
+                                  {item.kind}
+                                  {isSelected && <ChevronRight className="w-4 h-4 text-blue-500" />}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
                       );
@@ -259,66 +293,123 @@ export default function App() {
 
             {/* Content Area */}
             {selectedResource && (
-              <div className="flex-1 flex flex-col overflow-hidden bg-background">
-                <div className="h-14 border-b flex items-center px-6 shrink-0 justify-between">
+              <div className="flex-1 flex flex-col overflow-hidden bg-slate-50/50">
+                <div className="h-20 border-b border-slate-200 flex items-center px-8 shrink-0 justify-between bg-white">
                   <div>
-                    <h2 className="text-lg font-semibold">{selectedResource.kind}s</h2>
-                    <p className="text-xs text-muted-foreground">{selectedGroupVersion} • {selectedResource.namespaced ? 'Namespaced' : 'Cluster-scoped'}</p>
+                    <div className="flex items-center gap-3 mb-1">
+                      <h2 className="text-2xl font-bold text-slate-900">{selectedResource.kind}s</h2>
+                      <span className="px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-xs font-medium text-slate-600">
+                        {selectedGroupVersion}
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-500 flex items-center gap-1.5">
+                      {selectedResource.namespaced ? (
+                        <><Layers className="w-3.5 h-3.5" /> Namespaced Resource</>
+                      ) : (
+                        <><Globe className="w-3.5 h-3.5" /> Cluster-scoped Resource</>
+                      )}
+                    </p>
                   </div>
-                  <Button variant="outline" size="sm" onClick={fetchResources} disabled={isLoadingResources}>
-                    <RefreshCw className={`w-4 h-4 mr-2 ${isLoadingResources ? 'animate-spin' : ''}`} />
-                    Refresh
-                  </Button>
+                  
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input 
+                        type="text" 
+                        placeholder="Search by name..." 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="h-9 w-64 pl-9 pr-4 rounded-lg border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                      />
+                    </div>
+                    <Button variant="outline" size="sm" onClick={fetchResources} disabled={isLoadingResources} className="h-9 bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                      <RefreshCw className={`w-4 h-4 mr-2 ${isLoadingResources ? 'animate-spin text-blue-500' : ''}`} />
+                      Refresh
+                    </Button>
+                  </div>
                 </div>
                 
-                <div className="flex-1 overflow-auto p-6">
+                <div className="flex-1 overflow-auto p-8">
                   {resourceError ? (
-                    <div className="p-4 bg-destructive/10 text-destructive rounded-md border border-destructive/20 flex items-start">
-                      <ShieldAlert className="w-5 h-5 mr-2 shrink-0 mt-0.5" />
+                    <div className="p-5 bg-red-50 text-red-900 rounded-xl border border-red-100 flex items-start shadow-sm">
+                      <ShieldAlert className="w-5 h-5 mr-3 shrink-0 mt-0.5 text-red-500" />
                       <div>
-                        <h4 className="font-semibold">Error loading resources</h4>
-                        <p className="text-sm mt-1">{resourceError}</p>
+                        <h4 className="font-bold text-red-900">Error loading resources</h4>
+                        <p className="text-sm mt-1.5 text-red-700/90 leading-relaxed">{resourceError}</p>
                       </div>
                     </div>
                   ) : isLoadingResources ? (
-                    <div className="flex items-center justify-center h-64 text-muted-foreground">
-                      <Loader2 className="w-8 h-8 animate-spin" />
+                    <div className="flex flex-col items-center justify-center h-64 text-slate-400 gap-4">
+                      <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                      <p className="text-sm font-medium">Fetching {selectedResource.kind}s...</p>
                     </div>
-                  ) : resources.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-64 text-muted-foreground border-2 border-dashed rounded-lg">
-                      <Layers className="w-12 h-12 mb-4 opacity-20" />
-                      <p>No {selectedResource.kind}s found in {selectedNamespace === 'all' ? 'any namespace' : `namespace ${selectedNamespace}`}.</p>
+                  ) : filteredResources.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-96 text-slate-500 bg-white border border-slate-200 border-dashed rounded-2xl shadow-sm">
+                      <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                        <Search className="w-8 h-8 text-slate-400" />
+                      </div>
+                      <h3 className="text-lg font-bold text-slate-900 mb-1">No resources found</h3>
+                      <p className="text-sm text-slate-500">
+                        {searchQuery 
+                          ? `No ${selectedResource.kind}s matching "${searchQuery}"` 
+                          : `No ${selectedResource.kind}s found in ${selectedNamespace === 'all' ? 'any namespace' : `namespace ${selectedNamespace}`}.`}
+                      </p>
                     </div>
                   ) : (
-                    <div className="border rounded-md bg-card">
+                    <div className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
                       <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Name</TableHead>
-                            {selectedResource.namespaced && <TableHead>Namespace</TableHead>}
-                            <TableHead>Created</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
+                        <TableHeader className="bg-slate-50/80 border-b border-slate-200">
+                          <TableRow className="hover:bg-transparent">
+                            <TableHead className="font-semibold text-slate-700 h-11">Name</TableHead>
+                            {selectedResource.namespaced && <TableHead className="font-semibold text-slate-700 h-11">Namespace</TableHead>}
+                            <TableHead className="font-semibold text-slate-700 h-11">Age</TableHead>
+                            <TableHead className="text-right font-semibold text-slate-700 h-11">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {resources.map((item, i) => (
-                            <TableRow 
-                              key={item.metadata?.uid || i}
-                              className="cursor-pointer hover:bg-muted/50 transition-colors"
-                              onClick={() => handleViewDetail(item)}
-                            >
-                              <TableCell className="font-medium">{item.metadata?.name}</TableCell>
-                              {selectedResource.namespaced && <TableCell>{item.metadata?.namespace}</TableCell>}
-                              <TableCell className="text-muted-foreground">
-                                {item.metadata?.creationTimestamp ? new Date(item.metadata.creationTimestamp).toLocaleString() : '-'}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewDetail(item); }}>
-                                  <Eye className="w-4 h-4 mr-2" /> View
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                          {filteredResources.map((item, i) => {
+                            // Calculate age
+                            let age = '-';
+                            if (item.metadata?.creationTimestamp) {
+                              const created = new Date(item.metadata.creationTimestamp);
+                              const diffMs = Date.now() - created.getTime();
+                              const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                              const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                              const diffMins = Math.floor(diffMs / (1000 * 60));
+                              
+                              if (diffDays > 0) age = `${diffDays}d`;
+                              else if (diffHours > 0) age = `${diffHours}h`;
+                              else age = `${diffMins}m`;
+                            }
+
+                            return (
+                              <TableRow 
+                                key={item.metadata?.uid || i}
+                                className="cursor-pointer hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0 group"
+                                onClick={() => handleViewDetail(item)}
+                              >
+                                <TableCell className="font-semibold text-slate-900 py-3">{item.metadata?.name}</TableCell>
+                                {selectedResource.namespaced && (
+                                  <TableCell className="text-slate-600 py-3">
+                                    <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded-md text-xs font-medium">
+                                      {item.metadata?.namespace}
+                                    </span>
+                                  </TableCell>
+                                )}
+                                <TableCell className="text-slate-500 py-3 font-medium">{age}</TableCell>
+                                <TableCell className="text-right py-3">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-600 hover:text-blue-700 hover:bg-blue-50 h-8 px-3"
+                                    onClick={(e) => { e.stopPropagation(); handleViewDetail(item); }}
+                                  >
+                                    <Eye className="w-4 h-4 mr-1.5" /> View YAML
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </div>
@@ -332,33 +423,55 @@ export default function App() {
 
       {/* Resource Detail Modal */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="p-6 pb-2 shrink-0">
-            <DialogTitle className="flex items-center gap-2">
-              <Box className="w-5 h-5 text-primary" />
-              {detailResource?.metadata?.name}
-            </DialogTitle>
-            <DialogDescription>
-              {detailResource?.kind} • {detailResource?.metadata?.namespace || 'Cluster-scoped'}
-            </DialogDescription>
+        <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0 overflow-hidden border-slate-200 bg-white shadow-2xl sm:rounded-2xl">
+          <DialogHeader className="px-6 py-5 border-b border-slate-100 bg-slate-50/50 shrink-0">
+            <div className="flex items-center justify-between pr-8">
+              <div>
+                <DialogTitle className="flex items-center gap-2.5 text-xl font-bold text-slate-900">
+                  <Terminal className="w-5 h-5 text-blue-600" />
+                  {detailResource?.metadata?.name}
+                </DialogTitle>
+                <DialogDescription className="mt-1.5 text-sm font-medium text-slate-500 flex items-center gap-2">
+                  <span className="bg-slate-200/70 text-slate-700 px-2 py-0.5 rounded text-xs">{detailResource?.kind}</span>
+                  {detailResource?.metadata?.namespace && (
+                    <>
+                      <span>in</span>
+                      <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs">{detailResource.metadata.namespace}</span>
+                    </>
+                  )}
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
           
-          <div className="flex-1 overflow-hidden flex flex-col px-6 pb-6">
+          <div className="flex-1 overflow-hidden flex flex-col bg-slate-950">
             <Tabs defaultValue="yaml" className="flex-1 flex flex-col overflow-hidden">
-              <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0 mb-4">
-                <TabsTrigger value="yaml" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none">YAML</TabsTrigger>
-                <TabsTrigger value="json" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none">JSON</TabsTrigger>
-              </TabsList>
-              <TabsContent value="yaml" className="flex-1 overflow-hidden m-0 data-[state=active]:flex">
-                <ScrollArea className="flex-1 w-full rounded-md border bg-muted/30">
-                  <pre className="p-4 text-[13px] font-mono text-foreground/90 leading-relaxed">
+              <div className="bg-slate-900 border-b border-slate-800 px-4 pt-2">
+                <TabsList className="w-full justify-start rounded-none bg-transparent p-0 h-auto">
+                  <TabsTrigger 
+                    value="yaml" 
+                    className="rounded-t-lg rounded-b-none border-b-2 border-transparent px-6 py-2.5 text-sm font-medium text-slate-400 data-[state=active]:border-blue-500 data-[state=active]:bg-slate-950 data-[state=active]:text-slate-100 data-[state=active]:shadow-none transition-all"
+                  >
+                    YAML
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="json" 
+                    className="rounded-t-lg rounded-b-none border-b-2 border-transparent px-6 py-2.5 text-sm font-medium text-slate-400 data-[state=active]:border-blue-500 data-[state=active]:bg-slate-950 data-[state=active]:text-slate-100 data-[state=active]:shadow-none transition-all"
+                  >
+                    JSON
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+              <TabsContent value="yaml" className="flex-1 overflow-hidden m-0 data-[state=active]:flex bg-slate-950">
+                <ScrollArea className="flex-1 w-full">
+                  <pre className="p-6 text-[13px] font-mono text-slate-300 leading-relaxed selection:bg-blue-500/30">
                     {detailResource ? yaml.dump(detailResource) : ''}
                   </pre>
                 </ScrollArea>
               </TabsContent>
-              <TabsContent value="json" className="flex-1 overflow-hidden m-0 data-[state=active]:flex">
-                <ScrollArea className="flex-1 w-full rounded-md border bg-muted/30">
-                  <pre className="p-4 text-[13px] font-mono text-foreground/90 leading-relaxed">
+              <TabsContent value="json" className="flex-1 overflow-hidden m-0 data-[state=active]:flex bg-slate-950">
+                <ScrollArea className="flex-1 w-full">
+                  <pre className="p-6 text-[13px] font-mono text-slate-300 leading-relaxed selection:bg-blue-500/30">
                     {detailResource ? JSON.stringify(detailResource, null, 2) : ''}
                   </pre>
                 </ScrollArea>
