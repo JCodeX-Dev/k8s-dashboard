@@ -32,3 +32,15 @@ export const listResources = async (cluster: string, group: string, version: str
 export const getResource = async (cluster: string, group: string, version: string, resource: string, name: string, namespace?: string) => {
   return sendAgentRequest(cluster, 'get', { group, version, resource, name, namespace });
 };
+
+export const createResource = async (cluster: string, group: string, version: string, resource: string, payload: any, namespace?: string) => {
+  return sendAgentRequest(cluster, 'create', { group, version, resource, payload, namespace });
+};
+
+export const updateResource = async (cluster: string, group: string, version: string, resource: string, name: string, payload: any, namespace?: string) => {
+  return sendAgentRequest(cluster, 'update', { group, version, resource, name, payload, namespace });
+};
+
+export const deleteResource = async (cluster: string, group: string, version: string, resource: string, name: string, namespace?: string) => {
+  return sendAgentRequest(cluster, 'delete', { group, version, resource, name, namespace });
+};

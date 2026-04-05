@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Cluster, getClusters, getDiscovery, listResources, getResource } from './lib/k8s';
+import { Cluster, getClusters, getDiscovery, listResources, getResource, createResource, updateResource, deleteResource } from './lib/k8s';
 import { Button } from './components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './components/ui/dialog';
 import { ScrollArea } from './components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Label } from './components/ui/label';
-import { Server, ShieldAlert, Loader2, Box, Layers, RefreshCw, Eye, Activity, Globe, Database, Cpu, Puzzle, Terminal, Search, Filter, ChevronRight, Network } from 'lucide-react';
+import { Server, ShieldAlert, Loader2, Box, Layers, RefreshCw, Eye, Activity, Globe, Database, Cpu, Puzzle, Terminal, Search, Filter, ChevronRight, Network, Plus, Trash2, Edit, ChevronDown, CheckCircle2 } from 'lucide-react';
 import yaml from 'js-yaml';
 import ResourceGraph from './components/ResourceGraph';
 import ClusterOverview from './components/ClusterOverview';
@@ -45,6 +45,15 @@ export default function App() {
   // Resource Detail State
   const [detailResource, setDetailResource] = useState<any>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+
+  // CRUD State
+  const [isCreateEditOpen, setIsCreateEditOpen] = useState(false);
+  const [createEditMode, setCreateEditMode] = useState<'create' | 'edit'>('create');
+  const [createEditYaml, setCreateEditYaml] = useState('');
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [resourceToDelete, setResourceToDelete] = useState<any>(null);
+  const [toastMessage, setToastMessage] = useState<{title: string, type: 'success' | 'error'} | null>(null);
+  const [expandedCrdGroups, setExpandedCrdGroups] = useState<Record<string, boolean>>({});
 
   // Polling clusters
   useEffect(() => {
@@ -146,14 +155,81 @@ export default function App() {
     }
   };
 
+  const handleCreateClick = () => {
+    setCreateEditMode('create');
+    setCreateEditYaml(`apiVersion: ${selectedGroupVersion}\nkind: ${selectedResource.kind}\nmetadata:\n  name: new-resource\n  namespace: ${selectedNamespace !== 'all' ? selectedNamespace : 'default'}\n`);
+    setIsCreateEditOpen(true);
+  };
+
+  const handleEditClick = async (item: any) => {
+    if (!selectedCluster || !selectedResource) return;
+    try {
+      const { group, version } = parseGroupVersion(selectedGroupVersion);
+      const data = await getResource(selectedCluster, group, version, selectedResource.name, item.metadata.name, item.metadata.namespace);
+      setCreateEditMode('edit');
+      const cleanItem = { ...data };
+      if (cleanItem.metadata?.managedFields) delete cleanItem.metadata.managedFields;
+      setCreateEditYaml(yaml.dump(cleanItem));
+      setIsCreateEditOpen(true);
+    } catch (err: any) {
+      alert(`Failed to load resource for editing: ${err.message}`);
+    }
+  };
+
+  const handleDeleteClick = (item: any) => {
+    setResourceToDelete(item);
+    setIsDeleteOpen(true);
+  };
+
+  const showToast = (title: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage({ title, type });
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const submitCreateEdit = async () => {
+    try {
+      const parsed = yaml.load(createEditYaml) as any;
+      const { group, version } = parseGroupVersion(selectedGroupVersion);
+      
+      if (createEditMode === 'create') {
+        await createResource(selectedCluster, group, version, selectedResource.name, parsed, parsed.metadata?.namespace);
+        showToast('Resource created successfully');
+      } else {
+        await updateResource(selectedCluster, group, version, selectedResource.name, parsed.metadata.name, parsed, parsed.metadata?.namespace);
+        showToast('Resource updated successfully');
+      }
+      setIsCreateEditOpen(false);
+      fetchResources(false);
+    } catch (err: any) {
+      alert(`Failed to ${createEditMode} resource: ${err.message}`);
+    }
+  };
+
+  const submitDelete = async () => {
+    if (!resourceToDelete) return;
+    try {
+      const { group, version } = parseGroupVersion(selectedGroupVersion);
+      await deleteResource(selectedCluster, group, version, selectedResource.name, resourceToDelete.metadata.name, resourceToDelete.metadata.namespace);
+      showToast('Resource deleted successfully');
+      setIsDeleteOpen(false);
+      setResourceToDelete(null);
+      if (isDetailOpen && detailResource?.metadata?.name === resourceToDelete.metadata.name) {
+        setIsDetailOpen(false);
+      }
+      fetchResources(false);
+    } catch (err: any) {
+      alert(`Failed to delete resource: ${err.message}`);
+    }
+  };
+
   // Group resources for sidebar
   const groupedResources = React.useMemo(() => {
-    const groups: Record<string, any[]> = {
+    const groups: Record<string, any> = {
       'Workloads': [],
       'Network': [],
       'Config & Storage': [],
       'Cluster': [],
-      'Custom Resources': []
+      'Custom Resources': {}
     };
 
     if (!discovery || !Array.isArray(discovery)) return groups;
@@ -174,14 +250,23 @@ export default function App() {
         } else if (['nodes', 'namespaces', 'events', 'serviceaccounts', 'roles', 'rolebindings', 'clusterroles', 'clusterrolebindings'].includes(r.name)) {
           groups['Cluster'].push(item);
         } else {
-          groups['Custom Resources'].push(item);
+          if (!groups['Custom Resources'][gv.groupVersion]) {
+            groups['Custom Resources'][gv.groupVersion] = [];
+          }
+          groups['Custom Resources'][gv.groupVersion].push(item);
         }
       });
     });
 
     // Sort within groups
     Object.keys(groups).forEach(k => {
-      groups[k].sort((a, b) => a.name.localeCompare(b.name));
+      if (k === 'Custom Resources') {
+        Object.keys(groups[k]).forEach(gv => {
+          groups[k][gv].sort((a: any, b: any) => a.name.localeCompare(b.name));
+        });
+      } else {
+        groups[k].sort((a: any, b: any) => a.name.localeCompare(b.name));
+      }
     });
 
     return groups;
@@ -298,7 +383,58 @@ export default function App() {
                       <span className="text-sm font-medium">Discovering API...</span>
                     </div>
                   ) : (
-                    (Object.entries(groupedResources) as [string, any[]][]).map(([groupName, items]) => {
+                    Object.entries(groupedResources).map(([groupName, groupData]) => {
+                      if (groupName === 'Custom Resources') {
+                        const crdGroups = Object.entries(groupData as Record<string, any[]>);
+                        if (crdGroups.length === 0) return null;
+                        return (
+                          <div key={groupName} className="px-2">
+                            <div className="flex items-center gap-2 px-2 mb-2">
+                              <span className="text-slate-400">{getGroupIcon(groupName)}</span>
+                              <h3 className="text-[11px] font-bold tracking-wider uppercase text-slate-500">{groupName}</h3>
+                            </div>
+                            <div className="space-y-2">
+                              {crdGroups.map(([gv, items]) => (
+                                <div key={gv} className="space-y-0.5">
+                                  <button
+                                    onClick={() => setExpandedCrdGroups(prev => ({ ...prev, [gv]: !prev[gv] }))}
+                                    className="w-full text-left px-3 py-1.5 text-xs rounded-md transition-colors flex items-center justify-between text-slate-500 hover:bg-slate-100 font-semibold"
+                                  >
+                                    {gv}
+                                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expandedCrdGroups[gv] ? 'rotate-180' : ''}`} />
+                                  </button>
+                                  {expandedCrdGroups[gv] && (
+                                    <div className="pl-2 border-l-2 border-slate-100 ml-3 space-y-0.5 mt-1">
+                                      {items.map(item => {
+                                        const isSelected = selectedResource?.name === item.name && selectedGroupVersion === item.groupVersion;
+                                        return (
+                                          <button
+                                            key={`${item.groupVersion}-${item.name}`}
+                                            onClick={() => {
+                                              setSelectedGroupVersion(item.groupVersion);
+                                              setSelectedResource(item);
+                                            }}
+                                            className={`w-full text-left px-3 py-1.5 text-sm rounded-lg transition-all duration-200 flex items-center justify-between group ${
+                                              isSelected
+                                                ? 'bg-blue-50 text-blue-700 font-semibold shadow-sm'
+                                                : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900 font-medium'
+                                            }`}
+                                          >
+                                            {item.kind}
+                                            {isSelected && <ChevronRight className="w-4 h-4 text-blue-500" />}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      const items = groupData as any[];
                       if (items.length === 0) return null;
                       return (
                         <div key={groupName} className="px-2">
@@ -359,6 +495,9 @@ export default function App() {
                   </div>
                   
                   <div className="flex items-center gap-3">
+                    <Button variant="default" size="sm" onClick={handleCreateClick} className="h-9 bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
+                      <Plus className="w-4 h-4 mr-1.5" /> Create
+                    </Button>
                     <div className="relative">
                       <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input 
@@ -455,14 +594,35 @@ export default function App() {
                                 )}
                                 <TableCell className="text-slate-500 py-3 font-medium">{age}</TableCell>
                                 <TableCell className="text-right py-3">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-600 hover:text-blue-700 hover:bg-blue-50 h-8 px-3"
-                                    onClick={(e) => { e.stopPropagation(); handleViewDetail(item); }}
-                                  >
-                                    <Eye className="w-4 h-4 mr-1.5" /> View YAML
-                                  </Button>
+                                  <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 h-8 px-2"
+                                      onClick={(e) => { e.stopPropagation(); handleViewDetail(item); }}
+                                      title="View YAML"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </Button>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="text-slate-600 hover:text-blue-700 hover:bg-blue-50 h-8 px-2"
+                                      onClick={(e) => { e.stopPropagation(); handleEditClick(item); }}
+                                      title="Edit Resource"
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                    </Button>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 px-2"
+                                      onClick={(e) => { e.stopPropagation(); handleDeleteClick(item); }}
+                                      title="Delete Resource"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  </div>
                                 </TableCell>
                               </TableRow>
                             );
@@ -497,6 +657,24 @@ export default function App() {
                     </>
                   )}
                 </DialogDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                  onClick={() => handleEditClick(detailResource)}
+                >
+                  <Edit className="w-4 h-4 mr-1.5" /> Edit
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 border-red-200 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700"
+                  onClick={() => handleDeleteClick(detailResource)}
+                >
+                  <Trash2 className="w-4 h-4 mr-1.5" /> Delete
+                </Button>
               </div>
             </div>
           </DialogHeader>
@@ -546,6 +724,68 @@ export default function App() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Create/Edit Dialog */}
+      <Dialog open={isCreateEditOpen} onOpenChange={setIsCreateEditOpen}>
+        <DialogContent className="max-w-4xl h-[85vh] flex flex-col bg-slate-900 border-slate-800 text-slate-100 p-0 overflow-hidden shadow-2xl">
+          <DialogHeader className="px-6 py-4 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md shrink-0">
+            <DialogTitle className="text-xl font-bold flex items-center gap-3 text-white">
+              {createEditMode === 'create' ? <Plus className="w-5 h-5 text-blue-400" /> : <Edit className="w-5 h-5 text-blue-400" />}
+              {createEditMode === 'create' ? `Create ${selectedResource?.kind}` : `Edit ${selectedResource?.kind}`}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden p-4 bg-[#1e1e1e]">
+            <textarea
+              className="w-full h-full bg-transparent text-slate-300 font-mono text-sm outline-none resize-none"
+              value={createEditYaml}
+              onChange={(e) => setCreateEditYaml(e.target.value)}
+              spellCheck={false}
+            />
+          </div>
+          <div className="px-6 py-4 border-t border-slate-800 bg-slate-900/50 flex justify-end gap-3 shrink-0">
+            <Button variant="outline" onClick={() => setIsCreateEditOpen(false)} className="border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700">
+              Cancel
+            </Button>
+            <Button onClick={submitCreateEdit} className="bg-blue-600 hover:bg-blue-700 text-white">
+              {createEditMode === 'create' ? 'Create' : 'Save Changes'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <ShieldAlert className="w-5 h-5" />
+              Confirm Deletion
+            </DialogTitle>
+            <DialogDescription className="pt-4 text-slate-600">
+              Are you sure you want to delete the {selectedResource?.kind} <strong>{resourceToDelete?.metadata?.name}</strong>
+              {resourceToDelete?.metadata?.namespace ? ` in namespace ${resourceToDelete.metadata.namespace}` : ''}?
+              <br/><br/>
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 mt-6">
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={submitDelete}>
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className={`fixed bottom-6 right-6 px-4 py-3 rounded-lg shadow-lg border flex items-center gap-3 z-50 animate-in slide-in-from-bottom-5 ${toastMessage.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+          {toastMessage.type === 'success' ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <ShieldAlert className="w-5 h-5 text-red-500" />}
+          <span className="font-medium">{toastMessage.title}</span>
+        </div>
+      )}
     </div>
   );
 }
