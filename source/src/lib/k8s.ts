@@ -44,3 +44,7 @@ export const updateResource = async (cluster: string, group: string, version: st
 export const deleteResource = async (cluster: string, group: string, version: string, resource: string, name: string, namespace?: string) => {
   return sendAgentRequest(cluster, 'delete', { group, version, resource, name, namespace });
 };
+
+export const getMetrics = async (cluster: string, resource: 'nodes' | 'pods', namespace?: string) => {
+  return sendAgentRequest(cluster, 'list', { group: 'metrics.k8s.io', version: 'v1beta1', resource, namespace });
+};

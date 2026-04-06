@@ -20,6 +20,8 @@ export default function ClusterOverview({ clusterName }: ClusterOverviewProps) {
   });
   const [nodes, setNodes] = useState<any[]>([]);
   const [pods, setPods] = useState<any[]>([]);
+  const [nodeMetrics, setNodeMetrics] = useState<any[]>([]);
+  const [podMetrics, setPodMetrics] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,8 +46,20 @@ export default function ClusterOverview({ clusterName }: ClusterOverviewProps) {
           listResources(clusterName, 'batch', 'v1', 'cronjobs'),
         ]);
 
+        let nodeMetricsData = null;
+        let podMetricsData = null;
+        try {
+          const { getMetrics } = await import('../lib/k8s');
+          nodeMetricsData = await getMetrics(clusterName, 'nodes');
+          podMetricsData = await getMetrics(clusterName, 'pods');
+        } catch (e) {
+          console.warn("Metrics server not available", e);
+        }
+
         setNodes(nodesData?.items || []);
         setPods(podsData?.items || []);
+        setNodeMetrics(nodeMetricsData?.items || []);
+        setPodMetrics(podMetricsData?.items || []);
         
         setStats({
           nodes: nodesData?.items?.length || 0,
@@ -88,6 +102,8 @@ export default function ClusterOverview({ clusterName }: ClusterOverviewProps) {
   // Parse node capacity
   const parseCpu = (cpuStr: string) => {
     if (!cpuStr) return 0;
+    if (cpuStr.endsWith('n')) return parseInt(cpuStr) / 1000000000;
+    if (cpuStr.endsWith('u')) return parseInt(cpuStr) / 1000000;
     if (cpuStr.endsWith('m')) return parseInt(cpuStr) / 1000;
     return parseInt(cpuStr);
   };
@@ -97,6 +113,9 @@ export default function ClusterOverview({ clusterName }: ClusterOverviewProps) {
     if (memStr.endsWith('Ki')) return parseInt(memStr) / (1024 * 1024); // to Gi
     if (memStr.endsWith('Mi')) return parseInt(memStr) / 1024; // to Gi
     if (memStr.endsWith('Gi')) return parseInt(memStr);
+    if (memStr.endsWith('Ti')) return parseInt(memStr) * 1024;
+    // Handle bytes
+    if (!isNaN(Number(memStr))) return parseInt(memStr) / (1024 * 1024 * 1024);
     return parseInt(memStr) / (1024 * 1024 * 1024);
   };
 
@@ -104,6 +123,8 @@ export default function ClusterOverview({ clusterName }: ClusterOverviewProps) {
   let totalMemory = 0;
   let cpuRequests = 0;
   let memoryRequests = 0;
+  let cpuUsage = 0;
+  let memoryUsage = 0;
   
   nodes.forEach(node => {
     totalCpu += parseCpu(node.status?.capacity?.cpu);
@@ -119,8 +140,15 @@ export default function ClusterOverview({ clusterName }: ClusterOverviewProps) {
     }
   });
 
+  nodeMetrics.forEach(metric => {
+    cpuUsage += parseCpu(metric.usage?.cpu);
+    memoryUsage += parseMemory(metric.usage?.memory);
+  });
+
   const cpuUtil = totalCpu > 0 ? (cpuRequests / totalCpu) * 100 : 0;
   const memUtil = totalMemory > 0 ? (memoryRequests / totalMemory) * 100 : 0;
+  const cpuUsageUtil = totalCpu > 0 ? (cpuUsage / totalCpu) * 100 : 0;
+  const memUsageUtil = totalMemory > 0 ? (memoryUsage / totalMemory) * 100 : 0;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-slate-50/50">

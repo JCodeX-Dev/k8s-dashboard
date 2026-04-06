@@ -57,6 +57,7 @@ export default function ResourceGraph({ cluster, resource }: ResourceGraphProps)
               id: `e-${uid}-${rs.metadata.uid}`,
               source: uid,
               target: rs.metadata.uid,
+              type: 'smoothstep',
               animated: true,
               style: { stroke: '#94a3b8' },
               markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' }
@@ -77,6 +78,7 @@ export default function ResourceGraph({ cluster, resource }: ResourceGraphProps)
                 id: `e-${rs.metadata.uid}-${pod.metadata.uid}`,
                 source: rs.metadata.uid,
                 target: pod.metadata.uid,
+                type: 'smoothstep',
                 animated: true,
                 style: { stroke: '#94a3b8' },
                 markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' }
@@ -103,6 +105,7 @@ export default function ResourceGraph({ cluster, resource }: ResourceGraphProps)
                 id: `e-${uid}-${pod.metadata.uid}`,
                 source: uid,
                 target: pod.metadata.uid,
+                type: 'smoothstep',
                 animated: true,
                 style: { stroke: '#94a3b8' },
                 markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' }
@@ -123,6 +126,7 @@ export default function ResourceGraph({ cluster, resource }: ResourceGraphProps)
               id: `e-${owner.uid}-${uid}`,
               source: owner.uid,
               target: uid,
+              type: 'smoothstep',
               animated: true,
               style: { stroke: '#94a3b8' },
               markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' }

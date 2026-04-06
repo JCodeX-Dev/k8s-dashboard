@@ -5,6 +5,7 @@ import { Activity, Cpu, MemoryStick } from 'lucide-react';
 
 export default function ResourceOverview({ clusterName, resourceType, resourceData, onChildClick }: any) {
   const [children, setChildren] = useState<any[]>([]);
+  const [podMetrics, setPodMetrics] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -45,9 +46,26 @@ export default function ResourceOverview({ clusterName, resourceType, resourceDa
           const ownedPods = podsList.filter((pod: any) => pod.metadata?.ownerReferences?.some((ref: any) => jobUids.includes(ref.uid)));
           
           fetchedChildren = [...ownedJobs, ...ownedPods];
+        } else if (kind === 'Node') {
+          const podsData = await listResources(clusterName, '', 'v1', 'pods');
+          const podsList = podsData?.items || [];
+          fetchedChildren = podsList.filter((pod: any) => pod.spec?.nodeName === resourceData.metadata.name);
         }
 
         setChildren(fetchedChildren);
+
+        // Fetch metrics for pods
+        if (fetchedChildren.some(c => c.kind === 'Pod') || kind === 'Pod' || kind === 'Node') {
+          try {
+            const { getMetrics } = await import('../lib/k8s');
+            // If it's a node, we might want to fetch all pod metrics and filter, or just fetch node metrics
+            // For now, fetch pod metrics for the namespace
+            const metricsData = await getMetrics(clusterName, 'pods', ns);
+            setPodMetrics(metricsData?.items || []);
+          } catch (e) {
+            console.warn("Metrics server not available", e);
+          }
+        }
       } catch (err) {
         console.error("Failed to fetch children", err);
       } finally {
@@ -66,6 +84,8 @@ export default function ResourceOverview({ clusterName, resourceType, resourceDa
 
   const parseCpu = (cpuStr: string) => {
     if (!cpuStr) return 0;
+    if (cpuStr.endsWith('n')) return parseInt(cpuStr) / 1000000000;
+    if (cpuStr.endsWith('u')) return parseInt(cpuStr) / 1000000;
     if (cpuStr.endsWith('m')) return parseInt(cpuStr) / 1000;
     return parseInt(cpuStr);
   };
@@ -75,6 +95,8 @@ export default function ResourceOverview({ clusterName, resourceType, resourceDa
     if (memStr.endsWith('Ki')) return parseInt(memStr) / (1024 * 1024);
     if (memStr.endsWith('Mi')) return parseInt(memStr) / 1024;
     if (memStr.endsWith('Gi')) return parseInt(memStr);
+    if (memStr.endsWith('Ti')) return parseInt(memStr) * 1024;
+    if (!isNaN(Number(memStr))) return parseInt(memStr) / (1024 * 1024 * 1024);
     return parseInt(memStr) / (1024 * 1024 * 1024);
   };
 
@@ -143,6 +165,8 @@ export default function ResourceOverview({ clusterName, resourceType, resourceDa
                 <TableHead className="font-semibold text-slate-600">Kind</TableHead>
                 <TableHead className="font-semibold text-slate-600">Name</TableHead>
                 <TableHead className="font-semibold text-slate-600">Status</TableHead>
+                <TableHead className="font-semibold text-slate-600">CPU Usage</TableHead>
+                <TableHead className="font-semibold text-slate-600">Memory Usage</TableHead>
                 <TableHead className="font-semibold text-slate-600">Age</TableHead>
               </TableRow>
             </TableHeader>
@@ -160,24 +184,48 @@ export default function ResourceOverview({ clusterName, resourceType, resourceDa
                 const ageMins = Math.floor(ageMs / (1000 * 60));
                 const age = ageDays > 0 ? `${ageDays}d` : ageHours > 0 ? `${ageHours}h` : `${ageMins}m`;
 
+                let cpuUsage = 'N/A';
+                let memUsage = 'N/A';
+
+                if (child.kind === 'Pod') {
+                  const metric = podMetrics.find(m => m.metadata.name === child.metadata.name && m.metadata.namespace === child.metadata.namespace);
+                  if (metric) {
+                    let cpuTotal = 0;
+                    let memTotal = 0;
+                    metric.containers.forEach((c: any) => {
+                      cpuTotal += parseCpu(c.usage.cpu);
+                      memTotal += parseMemory(c.usage.memory);
+                    });
+                    cpuUsage = `${(cpuTotal * 1000).toFixed(0)}m`;
+                    memUsage = `${(memTotal * 1024).toFixed(0)}Mi`;
+                  }
+                }
+
                 return (
                   <TableRow 
                     key={i}
-                    className="cursor-pointer hover:bg-slate-100 transition-colors"
+                    className="cursor-pointer hover:bg-blue-50/50 transition-colors group"
                     onClick={() => onChildClick && onChildClick(child.kind, child.metadata.name, child.metadata.namespace)}
                   >
-                    <TableCell className="font-medium text-slate-600">{child.kind}</TableCell>
-                    <TableCell className="font-medium text-slate-900">{child.metadata.name}</TableCell>
                     <TableCell>
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
-                        status.includes('Running') || status.includes('Ready') || status === 'Succeeded' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
-                        status.includes('Pending') || status === 'Active' ? 'bg-amber-50 text-amber-700 border-amber-200' : 
-                        'bg-slate-50 text-slate-700 border-slate-200'
-                      }`}>
-                        {status}
+                      <span className="inline-flex items-center px-2 py-1 rounded-md bg-slate-100 text-slate-600 text-xs font-medium border border-slate-200">
+                        {child.kind}
                       </span>
                     </TableCell>
-                    <TableCell className="text-slate-500 font-medium">{age}</TableCell>
+                    <TableCell className="font-medium text-slate-900 group-hover:text-blue-600 transition-colors">{child.metadata.name}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${
+                          status.includes('Running') || status.includes('Ready') || status === 'Succeeded' ? 'bg-emerald-500' : 
+                          status.includes('Pending') || status === 'Active' ? 'bg-amber-500' : 
+                          'bg-slate-400'
+                        }`} />
+                        <span className="text-sm text-slate-600 font-medium">{status}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-slate-600 font-medium">{cpuUsage}</TableCell>
+                    <TableCell className="text-slate-600 font-medium">{memUsage}</TableCell>
+                    <TableCell className="text-slate-500 text-sm">{age}</TableCell>
                   </TableRow>
                 );
               })}
