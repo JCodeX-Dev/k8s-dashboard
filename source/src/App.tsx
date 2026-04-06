@@ -10,6 +10,7 @@ import { Server, ShieldAlert, Loader2, Box, Layers, RefreshCw, Eye, Activity, Gl
 import yaml from 'js-yaml';
 import ResourceGraph from './components/ResourceGraph';
 import ClusterOverview from './components/ClusterOverview';
+import ResourceOverview from './components/ResourceOverview';
 
 const getGroupIcon = (groupName: string) => {
   switch (groupName) {
@@ -680,9 +681,15 @@ export default function App() {
           </DialogHeader>
           
           <div className="flex-1 overflow-hidden flex flex-col bg-slate-950">
-            <Tabs defaultValue="yaml" className="flex-1 flex flex-col overflow-hidden">
+            <Tabs defaultValue="overview" className="flex-1 flex flex-col overflow-hidden">
               <div className="bg-slate-900 border-b border-slate-800 px-4 pt-2">
                 <TabsList className="w-full justify-start rounded-none bg-transparent p-0 h-auto">
+                  <TabsTrigger 
+                    value="overview" 
+                    className="rounded-t-lg rounded-b-none border-b-2 border-transparent px-6 py-2.5 text-sm font-medium text-slate-400 data-[state=active]:border-blue-500 data-[state=active]:bg-slate-950 data-[state=active]:text-slate-100 data-[state=active]:shadow-none transition-all"
+                  >
+                    Overview
+                  </TabsTrigger>
                   <TabsTrigger 
                     value="yaml" 
                     className="rounded-t-lg rounded-b-none border-b-2 border-transparent px-6 py-2.5 text-sm font-medium text-slate-400 data-[state=active]:border-blue-500 data-[state=active]:bg-slate-950 data-[state=active]:text-slate-100 data-[state=active]:shadow-none transition-all"
@@ -703,6 +710,9 @@ export default function App() {
                   </TabsTrigger>
                 </TabsList>
               </div>
+              <TabsContent value="overview" className="flex-1 overflow-hidden m-0 data-[state=active]:flex bg-slate-50">
+                <ResourceOverview clusterName={selectedCluster} resourceType={selectedResource} resourceData={detailResource} />
+              </TabsContent>
               <TabsContent value="yaml" className="flex-1 overflow-hidden m-0 data-[state=active]:flex bg-slate-950">
                 <ScrollArea className="flex-1 w-full">
                   <pre className="p-6 text-[13px] font-mono text-slate-300 leading-relaxed selection:bg-blue-500/30">
