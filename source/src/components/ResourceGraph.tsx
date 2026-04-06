@@ -31,7 +31,7 @@ export default function ResourceGraph({ cluster, resource }: ResourceGraphProps)
           id: uid,
           position: { x: 250, y: 50 },
           data: { label: `${kind}: ${name}` },
-          style: { background: '#1e293b', color: '#f8fafc', border: '1px solid #3b82f6', borderRadius: '8px', padding: '10px', fontWeight: 'bold' }
+          style: { background: '#eff6ff', color: '#1e3a8a', border: '2px solid #3b82f6', borderRadius: '8px', padding: '10px', fontWeight: 'bold' }
         });
 
         let yOffset = 150;
@@ -51,15 +51,15 @@ export default function ResourceGraph({ cluster, resource }: ResourceGraphProps)
               id: rs.metadata.uid,
               position: { x: 100 + i * 200, y: yOffset },
               data: { label: `ReplicaSet: ${rs.metadata.name}` },
-              style: { background: '#0f172a', color: '#cbd5e1', border: '1px solid #334155', borderRadius: '8px', padding: '10px' }
+              style: { background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '10px' }
             });
             newEdges.push({
               id: `e-${uid}-${rs.metadata.uid}`,
               source: uid,
               target: rs.metadata.uid,
               animated: true,
-              style: { stroke: '#64748b' },
-              markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' }
+              style: { stroke: '#94a3b8' },
+              markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' }
             });
 
             const relatedPods = podData.items?.filter((pod: any) => 
@@ -71,15 +71,15 @@ export default function ResourceGraph({ cluster, resource }: ResourceGraphProps)
                 id: pod.metadata.uid,
                 position: { x: 50 + i * 200 + j * 150, y: yOffset + 100 },
                 data: { label: `Pod: ${pod.metadata.name}\n(${pod.status?.phase})` },
-                style: { background: pod.status?.phase === 'Running' ? '#064e3b' : '#7f1d1d', color: '#f8fafc', border: pod.status?.phase === 'Running' ? '1px solid #10b981' : '1px solid #ef4444', borderRadius: '8px', padding: '10px' }
+                style: { background: pod.status?.phase === 'Running' ? '#ecfdf5' : '#fef2f2', color: pod.status?.phase === 'Running' ? '#065f46' : '#991b1b', border: pod.status?.phase === 'Running' ? '1px solid #10b981' : '1px solid #ef4444', borderRadius: '8px', padding: '10px' }
               });
               newEdges.push({
                 id: `e-${rs.metadata.uid}-${pod.metadata.uid}`,
                 source: rs.metadata.uid,
                 target: pod.metadata.uid,
                 animated: true,
-                style: { stroke: '#64748b' },
-                markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' }
+                style: { stroke: '#94a3b8' },
+                markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' }
               });
             });
           });
@@ -97,15 +97,15 @@ export default function ResourceGraph({ cluster, resource }: ResourceGraphProps)
                 id: pod.metadata.uid,
                 position: { x: 100 + i * 200, y: yOffset },
                 data: { label: `Pod: ${pod.metadata.name}\n(${pod.status?.phase})` },
-                style: { background: pod.status?.phase === 'Running' ? '#064e3b' : '#7f1d1d', color: '#f8fafc', border: pod.status?.phase === 'Running' ? '1px solid #10b981' : '1px solid #ef4444', borderRadius: '8px', padding: '10px' }
+                style: { background: pod.status?.phase === 'Running' ? '#ecfdf5' : '#fef2f2', color: pod.status?.phase === 'Running' ? '#065f46' : '#991b1b', border: pod.status?.phase === 'Running' ? '1px solid #10b981' : '1px solid #ef4444', borderRadius: '8px', padding: '10px' }
               });
               newEdges.push({
                 id: `e-${uid}-${pod.metadata.uid}`,
                 source: uid,
                 target: pod.metadata.uid,
                 animated: true,
-                style: { stroke: '#64748b' },
-                markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' }
+                style: { stroke: '#94a3b8' },
+                markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' }
               });
             });
           }
@@ -117,15 +117,15 @@ export default function ResourceGraph({ cluster, resource }: ResourceGraphProps)
               id: owner.uid,
               position: { x: 250, y: yOffset - 200 },
               data: { label: `${owner.kind}: ${owner.name}` },
-              style: { background: '#0f172a', color: '#cbd5e1', border: '1px solid #334155', borderRadius: '8px', padding: '10px' }
+              style: { background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '10px' }
             });
             newEdges.push({
               id: `e-${owner.uid}-${uid}`,
               source: owner.uid,
               target: uid,
               animated: true,
-              style: { stroke: '#64748b' },
-              markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' }
+              style: { stroke: '#94a3b8' },
+              markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' }
             });
           });
         }
@@ -159,11 +159,11 @@ export default function ResourceGraph({ cluster, resource }: ResourceGraphProps)
   }
 
   return (
-    <div className="w-full h-full bg-slate-950">
-      <ReactFlow nodes={nodes} edges={edges} fitView colorMode="dark">
-        <Background color="#334155" />
-        <Controls className="bg-slate-800 border-slate-700 fill-slate-300" />
-        <MiniMap nodeColor="#3b82f6" maskColor="rgba(15, 23, 42, 0.7)" className="bg-slate-900" />
+    <div className="w-full h-full bg-slate-50">
+      <ReactFlow nodes={nodes} edges={edges} fitView colorMode="light">
+        <Background color="#cbd5e1" />
+        <Controls className="bg-white border-slate-200 fill-slate-600" />
+        <MiniMap nodeColor="#3b82f6" maskColor="rgba(248, 250, 252, 0.7)" className="bg-white" />
       </ReactFlow>
     </div>
   );

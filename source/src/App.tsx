@@ -6,7 +6,7 @@ import { ScrollArea } from './components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Label } from './components/ui/label';
-import { Server, ShieldAlert, Loader2, Box, Layers, RefreshCw, Eye, Activity, Globe, Database, Cpu, Puzzle, Terminal, Search, Filter, ChevronRight, Network, Plus, Trash2, Edit, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { Server, ShieldAlert, Loader2, Box, Layers, RefreshCw, Eye, Activity, Globe, Database, Cpu, Puzzle, Terminal, Search, Filter, ChevronRight, Network, Plus, Trash2, Edit, ChevronDown, CheckCircle2, ChevronLeft } from 'lucide-react';
 import yaml from 'js-yaml';
 import ResourceGraph from './components/ResourceGraph';
 import ClusterOverview from './components/ClusterOverview';
@@ -45,7 +45,6 @@ export default function App() {
 
   // Resource Detail State
   const [detailResource, setDetailResource] = useState<any>(null);
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   // CRUD State
   const [isCreateEditOpen, setIsCreateEditOpen] = useState(false);
@@ -150,9 +149,36 @@ export default function App() {
       const { group, version } = parseGroupVersion(selectedGroupVersion);
       const data = await getResource(selectedCluster, group, version, selectedResource.name, item.metadata.name, item.metadata.namespace);
       setDetailResource(data);
-      setIsDetailOpen(true);
     } catch (err: any) {
       alert(`Failed to load details: ${err.message}`);
+    }
+  };
+
+  const handleNavigateToResource = async (kind: string, name: string, namespace: string) => {
+    let targetRes: any = null;
+    let targetGv: string = '';
+    
+    for (const gv of discovery) {
+      const res = gv.resources?.find((r: any) => r.kind === kind);
+      if (res) {
+        targetRes = res;
+        targetGv = gv.groupVersion;
+        break;
+      }
+    }
+
+    if (targetRes) {
+      setSelectedGroupVersion(targetGv);
+      setSelectedResource(targetRes);
+      try {
+        const { group, version } = parseGroupVersion(targetGv);
+        const data = await getResource(selectedCluster, group, version, targetRes.name, name, namespace);
+        setDetailResource(data);
+      } catch (err: any) {
+        alert(`Failed to load resource: ${err.message}`);
+      }
+    } else {
+      alert(`Could not find resource type ${kind} in discovery.`);
     }
   };
 
@@ -214,8 +240,8 @@ export default function App() {
       showToast('Resource deleted successfully');
       setIsDeleteOpen(false);
       setResourceToDelete(null);
-      if (isDetailOpen && detailResource?.metadata?.name === resourceToDelete.metadata.name) {
-        setIsDetailOpen(false);
+      if (detailResource?.metadata?.name === resourceToDelete.metadata.name) {
+        setDetailResource(null);
       }
       fetchResources(false);
     } catch (err: any) {
@@ -452,6 +478,7 @@ export default function App() {
                                   onClick={() => {
                                     setSelectedGroupVersion(item.groupVersion);
                                     setSelectedResource(item);
+                                    setDetailResource(null);
                                   }}
                                   className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all duration-200 flex items-center justify-between group ${
                                     isSelected
@@ -476,6 +503,104 @@ export default function App() {
             {/* Content Area */}
             {selectedResource === null ? (
               <ClusterOverview clusterName={selectedCluster} />
+            ) : detailResource !== null ? (
+              <div className="flex-1 flex flex-col overflow-hidden bg-slate-50/50">
+                {/* Detail View Header */}
+                <div className="h-20 border-b border-slate-200 flex items-center px-8 shrink-0 justify-between bg-white">
+                  <div>
+                    <div className="flex items-center gap-3 mb-1">
+                      <Button variant="ghost" size="sm" onClick={() => setDetailResource(null)} className="h-8 px-2 -ml-2 text-slate-500 hover:text-slate-900">
+                        <ChevronLeft className="w-4 h-4 mr-1" /> Back
+                      </Button>
+                      <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                        <Terminal className="w-5 h-5 text-blue-600" />
+                        {detailResource?.metadata?.name}
+                      </h2>
+                    </div>
+                    <p className="text-sm text-slate-500 flex items-center gap-2 ml-16">
+                      <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs font-medium border border-slate-200">{detailResource?.kind}</span>
+                      {detailResource?.metadata?.namespace && (
+                        <>
+                          <span>in</span>
+                          <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs font-medium border border-blue-100">{detailResource.metadata.namespace}</span>
+                        </>
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                      onClick={() => handleEditClick(detailResource)}
+                    >
+                      <Edit className="w-4 h-4 mr-1.5" /> Edit
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-9 border-red-200 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700"
+                      onClick={() => handleDeleteClick(detailResource)}
+                    >
+                      <Trash2 className="w-4 h-4 mr-1.5" /> Delete
+                    </Button>
+                  </div>
+                </div>
+                
+                {/* Detail View Tabs */}
+                <div className="flex-1 overflow-hidden flex flex-col bg-white">
+                  <Tabs defaultValue="overview" className="flex-1 flex flex-col overflow-hidden">
+                    <div className="bg-slate-50 border-b border-slate-200 px-6 pt-3">
+                      <TabsList className="w-full justify-start rounded-none bg-transparent p-0 h-auto">
+                        <TabsTrigger 
+                          value="overview" 
+                          className="rounded-t-lg rounded-b-none border-b-2 border-transparent px-6 py-2.5 text-sm font-medium text-slate-500 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none transition-all"
+                        >
+                          Overview
+                        </TabsTrigger>
+                        <TabsTrigger 
+                          value="yaml" 
+                          className="rounded-t-lg rounded-b-none border-b-2 border-transparent px-6 py-2.5 text-sm font-medium text-slate-500 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none transition-all"
+                        >
+                          YAML
+                        </TabsTrigger>
+                        <TabsTrigger 
+                          value="json" 
+                          className="rounded-t-lg rounded-b-none border-b-2 border-transparent px-6 py-2.5 text-sm font-medium text-slate-500 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none transition-all"
+                        >
+                          JSON
+                        </TabsTrigger>
+                        <TabsTrigger 
+                          value="graph" 
+                          className="rounded-t-lg rounded-b-none border-b-2 border-transparent px-6 py-2.5 text-sm font-medium text-slate-500 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none transition-all flex items-center gap-2"
+                        >
+                          <Network className="w-4 h-4" /> Graph
+                        </TabsTrigger>
+                      </TabsList>
+                    </div>
+                    <TabsContent value="overview" className="flex-1 overflow-hidden m-0 data-[state=active]:flex bg-slate-50">
+                      <ResourceOverview clusterName={selectedCluster} resourceType={selectedResource} resourceData={detailResource} onChildClick={handleNavigateToResource} />
+                    </TabsContent>
+                    <TabsContent value="yaml" className="flex-1 overflow-hidden m-0 data-[state=active]:flex bg-white">
+                      <ScrollArea className="flex-1 w-full">
+                        <pre className="p-6 text-[13px] font-mono text-slate-800 leading-relaxed selection:bg-blue-100">
+                          {detailResource ? yaml.dump(detailResource) : ''}
+                        </pre>
+                      </ScrollArea>
+                    </TabsContent>
+                    <TabsContent value="json" className="flex-1 overflow-hidden m-0 data-[state=active]:flex bg-white">
+                      <ScrollArea className="flex-1 w-full">
+                        <pre className="p-6 text-[13px] font-mono text-slate-800 leading-relaxed selection:bg-blue-100">
+                          {detailResource ? JSON.stringify(detailResource, null, 2) : ''}
+                        </pre>
+                      </ScrollArea>
+                    </TabsContent>
+                    <TabsContent value="graph" className="flex-1 overflow-hidden m-0 data-[state=active]:flex bg-slate-50">
+                      {detailResource && <ResourceGraph cluster={selectedCluster} resource={detailResource} />}
+                    </TabsContent>
+                  </Tabs>
+                </div>
+              </div>
             ) : (
               <div className="flex-1 flex flex-col overflow-hidden bg-slate-50/50">
                 <div className="h-20 border-b border-slate-200 flex items-center px-8 shrink-0 justify-between bg-white">
@@ -638,102 +763,6 @@ export default function App() {
           </>
         )}
       </div>
-
-      {/* Resource Detail Modal */}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0 overflow-hidden border-slate-200 bg-white shadow-2xl sm:rounded-2xl">
-          <DialogHeader className="px-6 py-5 border-b border-slate-100 bg-slate-50/50 shrink-0">
-            <div className="flex items-center justify-between pr-8">
-              <div>
-                <DialogTitle className="flex items-center gap-2.5 text-xl font-bold text-slate-900">
-                  <Terminal className="w-5 h-5 text-blue-600" />
-                  {detailResource?.metadata?.name}
-                </DialogTitle>
-                <DialogDescription className="mt-1.5 text-sm font-medium text-slate-500 flex items-center gap-2">
-                  <span className="bg-slate-200/70 text-slate-700 px-2 py-0.5 rounded text-xs">{detailResource?.kind}</span>
-                  {detailResource?.metadata?.namespace && (
-                    <>
-                      <span>in</span>
-                      <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs">{detailResource.metadata.namespace}</span>
-                    </>
-                  )}
-                </DialogDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="h-8 border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
-                  onClick={() => handleEditClick(detailResource)}
-                >
-                  <Edit className="w-4 h-4 mr-1.5" /> Edit
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="h-8 border-red-200 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700"
-                  onClick={() => handleDeleteClick(detailResource)}
-                >
-                  <Trash2 className="w-4 h-4 mr-1.5" /> Delete
-                </Button>
-              </div>
-            </div>
-          </DialogHeader>
-          
-          <div className="flex-1 overflow-hidden flex flex-col bg-slate-950">
-            <Tabs defaultValue="overview" className="flex-1 flex flex-col overflow-hidden">
-              <div className="bg-slate-900 border-b border-slate-800 px-4 pt-2">
-                <TabsList className="w-full justify-start rounded-none bg-transparent p-0 h-auto">
-                  <TabsTrigger 
-                    value="overview" 
-                    className="rounded-t-lg rounded-b-none border-b-2 border-transparent px-6 py-2.5 text-sm font-medium text-slate-400 data-[state=active]:border-blue-500 data-[state=active]:bg-slate-950 data-[state=active]:text-slate-100 data-[state=active]:shadow-none transition-all"
-                  >
-                    Overview
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="yaml" 
-                    className="rounded-t-lg rounded-b-none border-b-2 border-transparent px-6 py-2.5 text-sm font-medium text-slate-400 data-[state=active]:border-blue-500 data-[state=active]:bg-slate-950 data-[state=active]:text-slate-100 data-[state=active]:shadow-none transition-all"
-                  >
-                    YAML
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="json" 
-                    className="rounded-t-lg rounded-b-none border-b-2 border-transparent px-6 py-2.5 text-sm font-medium text-slate-400 data-[state=active]:border-blue-500 data-[state=active]:bg-slate-950 data-[state=active]:text-slate-100 data-[state=active]:shadow-none transition-all"
-                  >
-                    JSON
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="graph" 
-                    className="rounded-t-lg rounded-b-none border-b-2 border-transparent px-6 py-2.5 text-sm font-medium text-slate-400 data-[state=active]:border-blue-500 data-[state=active]:bg-slate-950 data-[state=active]:text-slate-100 data-[state=active]:shadow-none transition-all flex items-center gap-2"
-                  >
-                    <Network className="w-4 h-4" /> Graph
-                  </TabsTrigger>
-                </TabsList>
-              </div>
-              <TabsContent value="overview" className="flex-1 overflow-hidden m-0 data-[state=active]:flex bg-slate-50">
-                <ResourceOverview clusterName={selectedCluster} resourceType={selectedResource} resourceData={detailResource} />
-              </TabsContent>
-              <TabsContent value="yaml" className="flex-1 overflow-hidden m-0 data-[state=active]:flex bg-slate-950">
-                <ScrollArea className="flex-1 w-full">
-                  <pre className="p-6 text-[13px] font-mono text-slate-300 leading-relaxed selection:bg-blue-500/30">
-                    {detailResource ? yaml.dump(detailResource) : ''}
-                  </pre>
-                </ScrollArea>
-              </TabsContent>
-              <TabsContent value="json" className="flex-1 overflow-hidden m-0 data-[state=active]:flex bg-slate-950">
-                <ScrollArea className="flex-1 w-full">
-                  <pre className="p-6 text-[13px] font-mono text-slate-300 leading-relaxed selection:bg-blue-500/30">
-                    {detailResource ? JSON.stringify(detailResource, null, 2) : ''}
-                  </pre>
-                </ScrollArea>
-              </TabsContent>
-              <TabsContent value="graph" className="flex-1 overflow-hidden m-0 data-[state=active]:flex bg-slate-950">
-                {detailResource && <ResourceGraph cluster={selectedCluster} resource={detailResource} />}
-              </TabsContent>
-            </Tabs>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Create/Edit Dialog */}
       <Dialog open={isCreateEditOpen} onOpenChange={setIsCreateEditOpen}>

@@ -3,7 +3,7 @@ import { listResources } from '../lib/k8s';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Activity, Cpu, MemoryStick } from 'lucide-react';
 
-export default function ResourceOverview({ clusterName, resourceType, resourceData }: any) {
+export default function ResourceOverview({ clusterName, resourceType, resourceData, onChildClick }: any) {
   const [children, setChildren] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -161,7 +161,11 @@ export default function ResourceOverview({ clusterName, resourceType, resourceDa
                 const age = ageDays > 0 ? `${ageDays}d` : ageHours > 0 ? `${ageHours}h` : `${ageMins}m`;
 
                 return (
-                  <TableRow key={i}>
+                  <TableRow 
+                    key={i}
+                    className="cursor-pointer hover:bg-slate-100 transition-colors"
+                    onClick={() => onChildClick && onChildClick(child.kind, child.metadata.name, child.metadata.namespace)}
+                  >
                     <TableCell className="font-medium text-slate-600">{child.kind}</TableCell>
                     <TableCell className="font-medium text-slate-900">{child.metadata.name}</TableCell>
                     <TableCell>
